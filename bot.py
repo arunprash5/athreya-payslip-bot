@@ -1,123 +1,239 @@
 import os
 import csv
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+
+from telegram import Update, ReplyKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    ConversationHandler,
+    filters,
+)
 
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib import colors
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-
-pdfmetrics.registerFont(TTFont('DejaVuSans','DejaVuSans.ttf'))
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 
+EMPLOYEE, MONTH = range(2)
 
-def get_employee(name):
-    with open("employees.csv", newline='') as f:
+
+# ----------------------------
+# Load employees
+# ----------------------------
+def load_employees():
+    employees = []
+    with open("employees.csv") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            if row["name"].lower() == name.lower():
-                return row
-    return None
+            employees.append(row)
+    return employees
 
 
+# ----------------------------
+# Background
+# ----------------------------
+def draw_background(canvas, doc):
+    canvas.setFillColorRGB(0.93, 0.97, 1)
+    canvas.rect(0, 0, A4[0], A4[1], fill=1)
+
+
+# ----------------------------
+# PDF generator
+# ----------------------------
 def generate_payslip(emp, month):
 
     filename = f"{emp['name']}_{month}_payslip.pdf"
 
-    styles = getSampleStyleSheet()
     elements = []
 
-    if os.path.exists("logo.png"):
-        logo = Image("logo.png", width=140, height=70)
-        elements.append(logo)
+    header_style = ParagraphStyle(
+        "header",
+        fontSize=20,
+        textColor=colors.HexColor("#1F4E79"),
+        spaceAfter=10,
+    )
 
-    elements.append(Spacer(1,10))
+    normal_style = ParagraphStyle(
+        "normal",
+        fontSize=10,
+        spaceAfter=4,
+    )
 
-    elements.append(Paragraph("<b>Athreya Dental Clinic</b>", styles['Title']))
+    title_style = ParagraphStyle(
+        "title",
+        fontSize=14,
+        textColor=colors.HexColor("#1F4E79"),
+        spaceAfter=10,
+    )
 
-    elements.append(Paragraph(
-        "1st floor, Natesh Apartments, No.28/2, Velachery Bypass Rd,<br/>"
-        "near Kotak Mahindra Bank, Venkateswara Nagar,<br/>"
-        "Velachery, Chennai, Tamil Nadu 600042",
-        styles['Normal']
-    ))
+    # Header table (logo right)
+    logo = ""
+    if os.path.exists("athreya.jpg"):
+        logo = Image("athreya.jpg", width=120, height=60)
 
-    elements.append(Paragraph("Phone: 078100 28515", styles['Normal']))
-    elements.append(Paragraph("Website: https://www.athreyadentalclinic.com/", styles['Normal']))
+    header = Table(
+        [[Paragraph("<b>Athreya Dental Clinic</b>", header_style), logo]],
+        colWidths=[380, 150],
+    )
 
-    elements.append(Spacer(1,20))
+    header.setStyle(
+        TableStyle(
+            [
+                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
 
-    elements.append(Paragraph(f"<b>Payslip – {month}</b>", styles['Heading2']))
+    elements.append(header)
 
-    elements.append(Spacer(1,20))
+    elements.append(Spacer(1, 8))
 
-    employee_data = [
-        ["Employee Name", emp["name"]],
-        ["Designation", emp["designation"]],
-        ["Employee ID", emp["id"]],
-    ]
+    address = Paragraph(
+        "1st floor, Natesh Apartments, No.28/2<br/>"
+        "Velachery Bypass Rd, near Kotak Mahindra Bank<br/>"
+        "Venkateswara Nagar, Velachery<br/>"
+        "Chennai, Tamil Nadu 600042<br/><br/>"
+        "Phone: 078100 28515<br/>"
+        "Website: https://www.athreyadentalclinic.com/",
+        normal_style,
+    )
 
-    employee_table = Table(employee_data, colWidths=[200,300])
+    elements.append(address)
 
-    employee_table.setStyle(TableStyle([
-        ("BACKGROUND",(0,0),(0,-1),colors.lightgrey),
-        ("GRID",(0,0),(-1,-1),1,colors.grey)
-    ]))
+    elements.append(Spacer(1, 20))
+
+    elements.append(Paragraph(f"<b>Payslip – {month}</b>", title_style))
+
+    elements.append(Spacer(1, 10))
+
+    # Employee table
+    employee_table = Table(
+        [
+            ["Employee Name", emp["name"]],
+            ["Designation", emp["designation"]],
+            ["Employee ID", emp["id"]],
+        ],
+        colWidths=[200, 330],
+    )
+
+    employee_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#E8F1FB")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ]
+        )
+    )
 
     elements.append(employee_table)
 
-    elements.append(Spacer(1,30))
+    elements.append(Spacer(1, 25))
 
-    salary_data = [
-        ["Earnings","Amount"],
-        ["Basic Salary", f"₹ {emp['salary']}"],
-        ["Deductions","₹ 0"],
-        ["Net Pay", f"₹ {emp['salary']}"]
-    ]
+    # Salary table
+    salary_table = Table(
+        [
+            ["Earnings", "Amount"],
+            ["Basic Salary", f"Rs. {emp['salary']}"],
+            ["Deductions", "Rs. 0"],
+            ["Net Pay", f"Rs. {emp['salary']}"],
+        ],
+        colWidths=[330, 200],
+    )
 
-    salary_table = Table(salary_data, colWidths=[300,200])
-
-    salary_table.setStyle(TableStyle([
-        ("BACKGROUND",(0,0),(-1,0),colors.HexColor("#2E86C1")),
-        ("TEXTCOLOR",(0,0),(-1,0),colors.white),
-        ("GRID",(0,0),(-1,-1),1,colors.grey),
-        ("BACKGROUND",(0,-1),(-1,-1),colors.lightgrey)
-    ]))
+    salary_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#E8F1FB")),
+            ]
+        )
+    )
 
     elements.append(salary_table)
 
+    elements.append(Spacer(1, 40))
+
+    footer = Paragraph(
+        "This is a computer generated payslip and does not require signature.",
+        normal_style,
+    )
+
+    elements.append(footer)
+
     pdf = SimpleDocTemplate(filename, pagesize=A4)
-    pdf.build(elements)
+
+    pdf.build(elements, onFirstPage=draw_background, onLaterPages=draw_background)
 
     return filename
 
 
-async def payslip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ----------------------------
+# Start payslip command
+# ----------------------------
+async def start_payslip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    if len(context.args) < 2:
-        await update.message.reply_text("Usage: /payslip name month")
-        return
+    employees = load_employees()
 
-    name = context.args[0]
-    month = context.args[1]
+    names = [[emp["name"]] for emp in employees]
 
-    emp = get_employee(name)
+    reply_markup = ReplyKeyboardMarkup(names, one_time_keyboard=True)
 
-    if not emp:
-        await update.message.reply_text("Employee not found")
-        return
+    await update.message.reply_text("Select Employee", reply_markup=reply_markup)
+
+    return EMPLOYEE
+
+
+# ----------------------------
+# Employee selected
+# ----------------------------
+async def employee_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    context.user_data["employee"] = update.message.text
+
+    await update.message.reply_text("Enter Month (Example: March 2026)")
+
+    return MONTH
+
+
+# ----------------------------
+# Month entered
+# ----------------------------
+async def month_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    month = update.message.text
+
+    employees = load_employees()
+
+    emp = next(e for e in employees if e["name"] == context.user_data["employee"])
 
     filename = generate_payslip(emp, month)
 
-    await update.message.reply_document(open(filename,"rb"))
+    await update.message.reply_document(open(filename, "rb"))
+
+    return ConversationHandler.END
 
 
+# ----------------------------
+# Bot setup
+# ----------------------------
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-app.add_handler(CommandHandler("payslip", payslip))
+conv = ConversationHandler(
+    entry_points=[CommandHandler("payslip", start_payslip)],
+    states={
+        EMPLOYEE: [MessageHandler(filters.TEXT & ~filters.COMMAND, employee_selected)],
+        MONTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, month_selected)],
+    },
+    fallbacks=[],
+)
+
+app.add_handler(conv)
 
 app.run_polling()
