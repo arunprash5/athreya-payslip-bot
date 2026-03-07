@@ -10,10 +10,9 @@ from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# Register font for ₹ symbol
 pdfmetrics.registerFont(TTFont('DejaVuSans','DejaVuSans.ttf'))
 
-BOT_TOKEN = os.environ["8689608357:AAGRJcJE5R0pJ97KU07scK0f-2EE8FIV9L8"]
+BOT_TOKEN = os.environ["BOT_TOKEN"]
 
 
 def get_employee(name):
@@ -32,7 +31,6 @@ def generate_payslip(emp, month):
     styles = getSampleStyleSheet()
     elements = []
 
-    # LOGO
     if os.path.exists("logo.png"):
         logo = Image("logo.png", width=140, height=70)
         elements.append(logo)
@@ -57,7 +55,6 @@ def generate_payslip(emp, month):
 
     elements.append(Spacer(1,20))
 
-    # Employee Table
     employee_data = [
         ["Employee Name", emp["name"]],
         ["Designation", emp["designation"]],
@@ -75,7 +72,6 @@ def generate_payslip(emp, month):
 
     elements.append(Spacer(1,30))
 
-    # Salary Table
     salary_data = [
         ["Earnings","Amount"],
         ["Basic Salary", f"₹ {emp['salary']}"],
