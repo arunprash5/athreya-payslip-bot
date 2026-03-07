@@ -1,9 +1,16 @@
+import os
+import csv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from reportlab.pdfgen import canvas
-import csv
 
-BOT_TOKEN = "8689608357:AAGRJcJE5R0pJ97KU07scK0f-2EE8FIV9L8"
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+# REGISTER FONT (for ₹ symbol)
+pdfmetrics.registerFont(TTFont('DejaVuSans','DejaVuSans.ttf'))
+
+BOT_TOKEN = os.environ["8689608357:AAGRJcJE5R0pJ97KU07scK0f-2EE8FIV9L8"]
 
 def get_employee(name):
     with open("employees.csv", newline='') as f:
@@ -13,7 +20,9 @@ def get_employee(name):
                 return row
     return None
 
+
 async def payslip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     if len(context.args) < 2:
         await update.message.reply_text("Usage: /payslip name month")
         return
@@ -31,21 +40,28 @@ async def payslip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     c = canvas.Canvas(filename)
 
-    c.drawString(200,800,"ATRIA DENTAL CLINIC")
+    # SET FONT
+    c.setFont("DejaVuSans", 12)
+
+    # HEADER
+    c.drawString(200,800,"ATHREYA DENTAL CLINIC")
     c.drawString(200,780,f"Payslip - {month}")
 
+    # EMPLOYEE DETAILS
     c.drawString(100,720,f"Employee Name: {emp['name']}")
     c.drawString(100,700,f"Designation: {emp['designation']}")
     c.drawString(100,680,f"Employee ID: {emp['id']}")
 
+    # SALARY SECTION
     c.drawString(100,640,"Earnings")
-    c.drawString(100,620,f"Basic Salary: ₹{emp['salary']}")
+    c.drawString(100,620,f"Basic Salary: ₹ {emp['salary']}")
 
-    c.drawString(100,580,f"Net Pay: ₹{emp['salary']}")
+    c.drawString(100,580,f"Net Pay: ₹ {emp['salary']}")
 
     c.save()
 
     await update.message.reply_document(open(filename,"rb"))
+
 
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
