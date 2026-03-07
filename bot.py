@@ -54,12 +54,14 @@ def generate_payslip(emp, month):
         "header",
         fontSize=20,
         textColor=colors.HexColor("#1F4E79"),
+        alignment=0,
         spaceAfter=10,
     )
 
     normal_style = ParagraphStyle(
         "normal",
         fontSize=10,
+        alignment=0,
         spaceAfter=4,
     )
 
@@ -67,6 +69,7 @@ def generate_payslip(emp, month):
         "title",
         fontSize=14,
         textColor=colors.HexColor("#1F4E79"),
+        alignment=0,
         spaceAfter=10,
     )
 
@@ -98,7 +101,7 @@ def generate_payslip(emp, month):
         "Velachery Bypass Rd, near Kotak Mahindra Bank<br/>"
         "Venkateswara Nagar, Velachery<br/>"
         "Chennai, Tamil Nadu 600042<br/><br/>"
-        "Phone: 078100 28515<br/>"
+        "Phone: 078100 28515<br/><br/>"
         "Website: https://www.athreyadentalclinic.com/",
         normal_style,
     )
@@ -183,9 +186,11 @@ async def start_payslip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     names = [[emp["name"]] for emp in employees]
 
-    reply_markup = ReplyKeyboardMarkup(names, one_time_keyboard=True)
+    reply_markup = ReplyKeyboardMarkup(names, resize_keyboard=True)
 
-    await update.message.reply_text("Select Employee", reply_markup=reply_markup)
+    await update.message.reply_text(
+        "Select Employee", reply_markup=reply_markup
+    )
 
     return EMPLOYEE
 
@@ -197,13 +202,24 @@ async def employee_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["employee"] = update.message.text
 
-    await update.message.reply_text("Enter Month (Example: March 2026)")
+    months = [
+        ["January", "February", "March"],
+        ["April", "May", "June"],
+        ["July", "August", "September"],
+        ["October", "November", "December"],
+    ]
+
+    reply_markup = ReplyKeyboardMarkup(months, resize_keyboard=True)
+
+    await update.message.reply_text(
+        "Select Month", reply_markup=reply_markup
+    )
 
     return MONTH
 
 
 # ----------------------------
-# Month entered
+# Month selected
 # ----------------------------
 async def month_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
