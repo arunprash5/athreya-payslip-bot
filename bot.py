@@ -21,9 +21,9 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 EMPLOYEE, MONTH = range(2)
 
 
-# ----------------------------
+# -----------------------------
 # Load employees
-# ----------------------------
+# -----------------------------
 def load_employees():
     employees = []
     with open("employees.csv") as f:
@@ -33,17 +33,17 @@ def load_employees():
     return employees
 
 
-# ----------------------------
-# Background
-# ----------------------------
+# -----------------------------
+# Page background
+# -----------------------------
 def draw_background(canvas, doc):
     canvas.setFillColorRGB(0.93, 0.97, 1)
     canvas.rect(0, 0, A4[0], A4[1], fill=1)
 
 
-# ----------------------------
-# PDF generator
-# ----------------------------
+# -----------------------------
+# Generate payslip PDF
+# -----------------------------
 def generate_payslip(emp, month):
 
     filename = f"{emp['name']}_{month}_payslip.pdf"
@@ -73,8 +73,8 @@ def generate_payslip(emp, month):
         spaceAfter=10,
     )
 
-    # Header table (logo right)
     logo = ""
+
     if os.path.exists("athreya.jpg"):
         logo = Image("athreya.jpg", width=120, height=60)
 
@@ -114,7 +114,6 @@ def generate_payslip(emp, month):
 
     elements.append(Spacer(1, 10))
 
-    # Employee table
     employee_table = Table(
         [
             ["Employee Name", emp["name"]],
@@ -137,7 +136,6 @@ def generate_payslip(emp, month):
 
     elements.append(Spacer(1, 25))
 
-    # Salary table
     salary_table = Table(
         [
             ["Earnings", "Amount"],
@@ -177,9 +175,9 @@ def generate_payslip(emp, month):
     return filename
 
 
-# ----------------------------
-# Start payslip command
-# ----------------------------
+# -----------------------------
+# Start payslip flow
+# -----------------------------
 async def start_payslip(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     employees = load_employees()
@@ -195,12 +193,12 @@ async def start_payslip(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return EMPLOYEE
 
 
-# ----------------------------
+# -----------------------------
 # Employee selected
-# ----------------------------
+# -----------------------------
 async def employee_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    context.user_data["employee"] = update.message.text
+    context.user_data["employee"] = update.message.text.strip()
 
     months = [
         ["January", "February", "March"],
@@ -218,16 +216,25 @@ async def employee_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return MONTH
 
 
-# ----------------------------
+# -----------------------------
 # Month selected
-# ----------------------------
+# -----------------------------
 async def month_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    month = update.message.text
+    month = update.message.text.strip()
 
     employees = load_employees()
 
-    emp = next(e for e in employees if e["name"] == context.user_data["employee"])
+    emp = None
+
+    for e in employees:
+        if e["name"].strip() == context.user_data["employee"]:
+            emp = e
+            break
+
+    if emp is None:
+        await update.message.reply_text("Employee not found.")
+        return ConversationHandler.END
 
     filename = generate_payslip(emp, month)
 
@@ -236,9 +243,9 @@ async def month_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-# ----------------------------
+# -----------------------------
 # Bot setup
-# ----------------------------
+# -----------------------------
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 conv = ConversationHandler(
