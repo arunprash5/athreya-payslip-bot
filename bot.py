@@ -3,14 +3,18 @@ import csv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-from reportlab.pdfgen import canvas
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Image, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# REGISTER FONT (for ₹ symbol)
+# Register font for ₹ symbol
 pdfmetrics.registerFont(TTFont('DejaVuSans','DejaVuSans.ttf'))
 
 BOT_TOKEN = os.environ["8689608357:AAGRJcJE5R0pJ97KU07scK0f-2EE8FIV9L8"]
+
 
 def get_employee(name):
     with open("employees.csv", newline='') as f:
@@ -19,6 +23,81 @@ def get_employee(name):
             if row["name"].lower() == name.lower():
                 return row
     return None
+
+
+def generate_payslip(emp, month):
+
+    filename = f"{emp['name']}_{month}_payslip.pdf"
+
+    styles = getSampleStyleSheet()
+    elements = []
+
+    # LOGO
+    if os.path.exists("logo.png"):
+        logo = Image("logo.png", width=140, height=70)
+        elements.append(logo)
+
+    elements.append(Spacer(1,10))
+
+    elements.append(Paragraph("<b>Athreya Dental Clinic</b>", styles['Title']))
+
+    elements.append(Paragraph(
+        "1st floor, Natesh Apartments, No.28/2, Velachery Bypass Rd,<br/>"
+        "near Kotak Mahindra Bank, Venkateswara Nagar,<br/>"
+        "Velachery, Chennai, Tamil Nadu 600042",
+        styles['Normal']
+    ))
+
+    elements.append(Paragraph("Phone: 078100 28515", styles['Normal']))
+    elements.append(Paragraph("Website: https://www.athreyadentalclinic.com/", styles['Normal']))
+
+    elements.append(Spacer(1,20))
+
+    elements.append(Paragraph(f"<b>Payslip – {month}</b>", styles['Heading2']))
+
+    elements.append(Spacer(1,20))
+
+    # Employee Table
+    employee_data = [
+        ["Employee Name", emp["name"]],
+        ["Designation", emp["designation"]],
+        ["Employee ID", emp["id"]],
+    ]
+
+    employee_table = Table(employee_data, colWidths=[200,300])
+
+    employee_table.setStyle(TableStyle([
+        ("BACKGROUND",(0,0),(0,-1),colors.lightgrey),
+        ("GRID",(0,0),(-1,-1),1,colors.grey)
+    ]))
+
+    elements.append(employee_table)
+
+    elements.append(Spacer(1,30))
+
+    # Salary Table
+    salary_data = [
+        ["Earnings","Amount"],
+        ["Basic Salary", f"₹ {emp['salary']}"],
+        ["Deductions","₹ 0"],
+        ["Net Pay", f"₹ {emp['salary']}"]
+    ]
+
+    salary_table = Table(salary_data, colWidths=[300,200])
+
+    salary_table.setStyle(TableStyle([
+        ("BACKGROUND",(0,0),(-1,0),colors.HexColor("#2E86C1")),
+        ("TEXTCOLOR",(0,0),(-1,0),colors.white),
+        ("GRID",(0,0),(-1,-1),1,colors.grey),
+        ("BACKGROUND",(0,-1),(-1,-1),colors.lightgrey)
+    ]))
+
+    elements.append(salary_table)
+
+    pdf = SimpleDocTemplate(filename, pagesize=A4)
+    pdf.build(elements)
+
+    return filename
 
 
 async def payslip(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -36,29 +115,7 @@ async def payslip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Employee not found")
         return
 
-    filename = f"{name}_{month}_payslip.pdf"
-
-    c = canvas.Canvas(filename)
-
-    # SET FONT
-    c.setFont("DejaVuSans", 12)
-
-    # HEADER
-    c.drawString(200,800,"ATHREYA DENTAL CLINIC")
-    c.drawString(200,780,f"Payslip - {month}")
-
-    # EMPLOYEE DETAILS
-    c.drawString(100,720,f"Employee Name: {emp['name']}")
-    c.drawString(100,700,f"Designation: {emp['designation']}")
-    c.drawString(100,680,f"Employee ID: {emp['id']}")
-
-    # SALARY SECTION
-    c.drawString(100,640,"Earnings")
-    c.drawString(100,620,f"Basic Salary: ₹ {emp['salary']}")
-
-    c.drawString(100,580,f"Net Pay: ₹ {emp['salary']}")
-
-    c.save()
+    filename = generate_payslip(emp, month)
 
     await update.message.reply_document(open(filename,"rb"))
 
