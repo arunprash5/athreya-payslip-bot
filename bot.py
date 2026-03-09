@@ -18,12 +18,18 @@ from reportlab.lib import colors
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 
-SELECT_EMPLOYEE, SELECT_MONTH = range(2)
+(
+SELECT_EMPLOYEE,
+SELECT_MONTH,
+ASK_VARIABLE,
+ENTER_VARIABLE_AMOUNT,
+ENTER_VARIABLE_DESC,
+ASK_LOP,
+ENTER_LOP_AMOUNT,
+ENTER_LOP_DESC,
+) = range(8)
 
 
-# -------------------------
-# Load Employees
-# -------------------------
 def load_employees():
     employees = []
     with open("employees.csv") as f:
@@ -33,67 +39,62 @@ def load_employees():
     return employees
 
 
-# -------------------------
-# Background
-# -------------------------
 def draw_background(canvas, doc):
-    canvas.setFillColorRGB(0.93, 0.97, 1)
-    canvas.rect(0, 0, A4[0], A4[1], fill=1)
+    canvas.setFillColorRGB(0.93,0.97,1)
+    canvas.rect(0,0,A4[0],A4[1],fill=1)
 
 
-# -------------------------
-# Generate Payslip
-# -------------------------
-def generate_payslip(emp, month):
+def generate_payslip(emp,data):
 
-    filename = f"{emp['name']}_{month}.pdf"
+    filename=f"{emp['name']}_{data['month']}.pdf"
 
-    elements = []
+    fixed=int(emp["salary"])
+    variable=int(data.get("variable_amount",0))
+    lop=int(data.get("lop_amount",0))
 
-    header_style = ParagraphStyle(
+    net=fixed+variable-lop
+
+    elements=[]
+
+    header_style=ParagraphStyle(
         "header",
         fontSize=20,
         textColor=colors.HexColor("#1F4E79"),
-        leftIndent=0,
-        spaceAfter=6,
+        spaceAfter=6
     )
 
-    normal_style = ParagraphStyle(
+    normal_style=ParagraphStyle(
         "normal",
         fontSize=10,
-        leftIndent=0,
-        spaceAfter=2,
+        spaceAfter=3
     )
 
-    title_style = ParagraphStyle(
+    title_style=ParagraphStyle(
         "title",
         fontSize=14,
         textColor=colors.HexColor("#1F4E79"),
-        spaceAfter=10,
+        spaceAfter=10
     )
 
-    logo = ""
-
+    logo=""
     if os.path.exists("athreya.jpg"):
-        logo = Image("athreya.jpg", width=110, height=55)
+        logo=Image("athreya.jpg",width=110,height=55)
 
-    header = Table(
-        [[Paragraph("<b>Athreya Dental Clinic</b>", header_style), logo]],
+    header=Table(
+        [[Paragraph("<b>Athreya Dental Clinic</b>",header_style),logo]],
         colWidths=[420,120]
     )
 
     header.setStyle(
         TableStyle([
-            ("ALIGN",(1,0),(1,0),"RIGHT"),
-            ("VALIGN",(0,0),(-1,-1),"TOP"),
+            ("ALIGN",(1,0),(1,0),"RIGHT")
         ])
     )
 
     elements.append(header)
+    elements.append(Spacer(1,6))
 
-    elements.append(Spacer(1,5))
-
-    address = Paragraph(
+    address=Paragraph(
         "1st floor, Natesh Apartments, No.28/2<br/>"
         "Velachery Bypass Rd, near Kotak Mahindra Bank<br/>"
         "Venkateswara Nagar, Velachery<br/>"
@@ -104,20 +105,19 @@ def generate_payslip(emp, month):
     )
 
     elements.append(address)
-
     elements.append(Spacer(1,20))
 
-    elements.append(Paragraph(f"<b>Payslip – {month}</b>", title_style))
+    elements.append(Paragraph(f"<b>Payslip – {data['month']}</b>",title_style))
 
-    elements.append(Spacer(1,10))
-
-    employee_table = Table(
+    employee_table=Table(
         [
-            ["Employee Name", emp["name"]],
-            ["Designation", emp["designation"]],
-            ["Employee ID", emp["id"]],
+            ["Employee Name",emp["name"]],
+            ["Designation",emp["designation"]],
+            ["Date of Joining",emp["doj"]],
+            ["PAN",emp["pan"]],
+            ["Employee ID",emp["id"]],
         ],
-        colWidths=[200,340]
+        colWidths=[220,320]
     )
 
     employee_table.setStyle(
@@ -128,16 +128,29 @@ def generate_payslip(emp, month):
     )
 
     elements.append(employee_table)
-
     elements.append(Spacer(1,25))
 
-    salary_table = Table(
-        [
-            ["Earnings","Amount"],
-            ["Basic Salary", f"Rs. {emp['salary']}"],
-            ["Deductions","Rs. 0"],
-            ["Net Pay", f"Rs. {emp['salary']}"],
-        ],
+    salary_rows=[
+        ["Component","Amount"],
+        ["Fixed Salary",f"Rs. {fixed}"]
+    ]
+
+    if variable>0:
+        label="Variable Pay"
+        if data.get("variable_desc"):
+            label+=f" ({data['variable_desc']})"
+        salary_rows.append([label,f"Rs. {variable}"])
+
+    if lop>0:
+        label="Loss of Pay"
+        if data.get("lop_desc"):
+            label+=f" ({data['lop_desc']})"
+        salary_rows.append([label,f"Rs. {lop}"])
+
+    salary_rows.append(["Net Salary",f"Rs. {net}"])
+
+    salary_table=Table(
+        salary_rows,
         colWidths=[340,200]
     )
 
@@ -152,16 +165,7 @@ def generate_payslip(emp, month):
 
     elements.append(salary_table)
 
-    elements.append(Spacer(1,40))
-
-    footer = Paragraph(
-        "This is a computer generated payslip and does not require signature.",
-        normal_style
-    )
-
-    elements.append(footer)
-
-    pdf = SimpleDocTemplate(
+    pdf=SimpleDocTemplate(
         filename,
         pagesize=A4,
         leftMargin=30,
@@ -170,75 +174,129 @@ def generate_payslip(emp, month):
         bottomMargin=25
     )
 
-    pdf.build(elements, onFirstPage=draw_background)
+    pdf.build(elements,onFirstPage=draw_background)
 
     return filename
 
 
-# -------------------------
-# Start command
-# -------------------------
-async def payslip_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
-    employees = load_employees()
+    employees=load_employees()
 
-    keyboard = [[emp["name"]] for emp in employees]
-
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    keyboard=[[e["name"]] for e in employees]
 
     await update.message.reply_text(
         "Select Employee",
-        reply_markup=reply_markup
+        reply_markup=ReplyKeyboardMarkup(keyboard,resize_keyboard=True)
     )
 
     return SELECT_EMPLOYEE
 
 
-# -------------------------
-# Employee chosen
-# -------------------------
-async def employee_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def employee(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
-    context.user_data["employee"] = update.message.text.strip()
+    context.user_data["employee"]=update.message.text.strip()
 
-    months = [
+    months=[
         ["January","February","March"],
         ["April","May","June"],
         ["July","August","September"],
         ["October","November","December"]
     ]
 
-    reply_markup = ReplyKeyboardMarkup(months, resize_keyboard=True)
-
     await update.message.reply_text(
         "Select Month",
-        reply_markup=reply_markup
+        reply_markup=ReplyKeyboardMarkup(months,resize_keyboard=True)
     )
 
     return SELECT_MONTH
 
 
-# -------------------------
-# Month chosen
-# -------------------------
-async def month_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def month(update:Update,context:ContextTypes.DEFAULT_TYPE):
 
-    month = update.message.text.strip()
+    context.user_data["month"]=update.message.text
 
-    employees = load_employees()
+    await update.message.reply_text(
+        "Any Variable Pay / Incentive?",
+        reply_markup=ReplyKeyboardMarkup([["Yes","No"]],resize_keyboard=True)
+    )
 
-    emp = None
+    return ASK_VARIABLE
+
+
+async def ask_variable(update:Update,context:ContextTypes.DEFAULT_TYPE):
+
+    if update.message.text=="Yes":
+        await update.message.reply_text("Enter Variable Pay Amount")
+        return ENTER_VARIABLE_AMOUNT
+    else:
+        context.user_data["variable_amount"]=0
+        await update.message.reply_text(
+            "Any Loss of Pay?",
+            reply_markup=ReplyKeyboardMarkup([["Yes","No"]],resize_keyboard=True)
+        )
+        return ASK_LOP
+
+
+async def variable_amount(update:Update,context:ContextTypes.DEFAULT_TYPE):
+
+    context.user_data["variable_amount"]=update.message.text
+    await update.message.reply_text("Enter Variable Pay Description (or type none)")
+    return ENTER_VARIABLE_DESC
+
+
+async def variable_desc(update:Update,context:ContextTypes.DEFAULT_TYPE):
+
+    desc=update.message.text
+    if desc.lower()!="none":
+        context.user_data["variable_desc"]=desc
+
+    await update.message.reply_text(
+        "Any Loss of Pay?",
+        reply_markup=ReplyKeyboardMarkup([["Yes","No"]],resize_keyboard=True)
+    )
+
+    return ASK_LOP
+
+
+async def ask_lop(update:Update,context:ContextTypes.DEFAULT_TYPE):
+
+    if update.message.text=="Yes":
+        await update.message.reply_text("Enter Loss of Pay Amount")
+        return ENTER_LOP_AMOUNT
+    else:
+        context.user_data["lop_amount"]=0
+        return await generate(update,context)
+
+
+async def lop_amount(update:Update,context:ContextTypes.DEFAULT_TYPE):
+
+    context.user_data["lop_amount"]=update.message.text
+    await update.message.reply_text("Enter Loss of Pay Description (or type none)")
+    return ENTER_LOP_DESC
+
+
+async def lop_desc(update:Update,context:ContextTypes.DEFAULT_TYPE):
+
+    desc=update.message.text
+    if desc.lower()!="none":
+        context.user_data["lop_desc"]=desc
+
+    return await generate(update,context)
+
+
+async def generate(update:Update,context:ContextTypes.DEFAULT_TYPE):
+
+    employees=load_employees()
+
+    emp=None
 
     for e in employees:
-        if e["name"].strip() == context.user_data["employee"]:
-            emp = e
+        if e["name"]==context.user_data["employee"]:
+            emp=e
             break
 
-    if emp is None:
-        await update.message.reply_text("Employee not found.")
-        return ConversationHandler.END
-
-    filename = generate_payslip(emp, month)
+    filename=generate_payslip(emp,context.user_data)
 
     await update.message.reply_document(
         open(filename,"rb"),
@@ -248,20 +306,23 @@ async def month_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-# -------------------------
-# BOT
-# -------------------------
-app = ApplicationBuilder().token(BOT_TOKEN).build()
+app=ApplicationBuilder().token(BOT_TOKEN).build()
 
-conv_handler = ConversationHandler(
-    entry_points=[CommandHandler("payslip", payslip_start)],
+conv=ConversationHandler(
+    entry_points=[CommandHandler("payslip",start)],
     states={
-        SELECT_EMPLOYEE: [MessageHandler(filters.TEXT & ~filters.COMMAND, employee_selected)],
-        SELECT_MONTH: [MessageHandler(filters.TEXT & ~filters.COMMAND, month_selected)],
+        SELECT_EMPLOYEE:[MessageHandler(filters.TEXT & ~filters.COMMAND,employee)],
+        SELECT_MONTH:[MessageHandler(filters.TEXT & ~filters.COMMAND,month)],
+        ASK_VARIABLE:[MessageHandler(filters.TEXT & ~filters.COMMAND,ask_variable)],
+        ENTER_VARIABLE_AMOUNT:[MessageHandler(filters.TEXT & ~filters.COMMAND,variable_amount)],
+        ENTER_VARIABLE_DESC:[MessageHandler(filters.TEXT & ~filters.COMMAND,variable_desc)],
+        ASK_LOP:[MessageHandler(filters.TEXT & ~filters.COMMAND,ask_lop)],
+        ENTER_LOP_AMOUNT:[MessageHandler(filters.TEXT & ~filters.COMMAND,lop_amount)],
+        ENTER_LOP_DESC:[MessageHandler(filters.TEXT & ~filters.COMMAND,lop_desc)],
     },
     fallbacks=[]
 )
 
-app.add_handler(conv_handler)
+app.add_handler(conv)
 
 app.run_polling()
