@@ -95,7 +95,6 @@ def generate_payslip(emp,data):
     )
 
     elements.append(header)
-
     elements.append(Spacer(1,10))
 
     address=Paragraph(
@@ -171,27 +170,30 @@ def generate_payslip(emp,data):
 
     elements.append(salary_table)
 
-    elements.append(Spacer(1,50))
+    elements.append(Spacer(1,60))
 
-    if os.path.exists("Gemini_Generated_Image_2ziuv52ziuv52ziu.png"):
+    if os.path.exists("sign.png"):
 
-        sig=Image(
-            "Gemini_Generated_Image_2ziuv52ziuv52ziu.png",
-            width=120,
-            height=60
+        signature=Image(
+            "sign.png",
+            width=180,
+            height=90
         )
 
         sig_table=Table(
-            [["",sig],
-             ["","Authorized Signatory"],
-             ["","Athreya Dental Clinic"]],
-            colWidths=[380,160]
+            [
+                ["",signature],
+                ["","Authorized Signatory"],
+                ["","Athreya Dental Clinic"]
+            ],
+            colWidths=[360,180]
         )
 
         sig_table.setStyle(
             TableStyle([
                 ("ALIGN",(1,0),(1,0),"RIGHT"),
                 ("ALIGN",(1,1),(1,2),"CENTER"),
+                ("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#EEF7FF")),
             ])
         )
 
